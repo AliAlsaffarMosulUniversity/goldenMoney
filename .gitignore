@@ -7,3 +7,7 @@ test.mp3
 test.ass
 test.mp4
 *.zip
+resource/music/*
+!resource/music/.gitkeep
+resource/fonts/*
+!resource/fonts/.gitkeep
