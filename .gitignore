@@ -11,3 +11,7 @@ resource/music/*
 !resource/music/.gitkeep
 resource/fonts/*
 !resource/fonts/.gitkeep
+resource/my_images/*
+!resource/my_images/.gitkeep
+resource/logos/*
+!resource/logos/.gitkeep

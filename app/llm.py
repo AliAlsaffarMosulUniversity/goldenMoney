@@ -126,29 +126,49 @@ def generate_script(cfg: dict, subject: str) -> dict:
     return _parse(_call(cfg, prompt))
 
 
-def terms_for_scenes(cfg: dict, subject: str, sentences: list[str]) -> list[list[str]]:
-    """Understand each sentence (in any language) and pick English stock-footage searches for it."""
+def terms_for_scenes(cfg: dict, subject: str, sentences: list[str],
+                     images: list[str] | None = None) -> tuple[list[list[str]], list[int | None]]:
+    """Understand each sentence (in any language): pick English stock-footage searches for it and,
+    if the creator supplied their own pictures (by description), the picture that fits it best.
+    Returns (terms per sentence, picture index or None per sentence)."""
     numbered = "\n".join(f"{i + 1}. {t}" for i, t in enumerate(sentences))
+    pics = ""
+    if images:
+        listed = "\n".join(f"{i + 1}. {d}" for i, d in enumerate(images))
+        pics = (f"\nThe creator also has {len(images)} pictures of their own, described as:\n{listed}\n"
+                'For each sentence also set "image" to the number of the picture that clearly fits that sentence, '
+                "or 0 if none fits. Use each picture at most once, and place every picture somewhere if possible.\n")
     prompt = (f'Video subject: "{subject}"\n'
-              f"These are the {len(sentences)} sentences of a voice-over, in order:\n{numbered}\n\n"
+              f"These are the {len(sentences)} sentences of a voice-over, in order:\n{numbered}\n{pics}\n"
               "For EACH sentence, understand what it says and give 2 or 3 short ENGLISH search terms "
               "(1-3 words each) for stock-footage sites, describing concrete, filmable visuals that "
               "illustrate that sentence. Avoid abstract words. "
-              f'Return JSON with exactly {len(sentences)} items: {{"scenes": [["term", "term"], ...]}}')
+              f'Return JSON with exactly {len(sentences)} items: '
+              '{"scenes": [{"terms": ["term", "term"], "image": 0}, ...]}')
     data = _json(_call(cfg, prompt))
-    out = []
+    terms, picks, used = [], [], set()
     for item in data.get("scenes", []):
+        img = None
         if isinstance(item, dict):
+            try:
+                n = int(item.get("image") or 0)
+            except (TypeError, ValueError):
+                n = 0
+            if images and 1 <= n <= len(images) and n - 1 not in used:
+                img = n - 1
+                used.add(img)
             item = item.get("terms", [])
         if isinstance(item, str):
             item = [item]
-        out.append([str(t).strip() for t in item if str(t).strip()])
-    # keep the list aligned with the sentences even if the AI returned too few/many items
-    out = (out + [[]] * len(sentences))[:len(sentences)]
-    return out
+        terms.append([str(t).strip() for t in item if str(t).strip()])
+        picks.append(img)
+    # keep the lists aligned with the sentences even if the AI returned too few/many items
+    terms = (terms + [[]] * len(sentences))[:len(sentences)]
+    picks = (picks + [None] * len(sentences))[:len(sentences)]
+    return terms, picks
 
 
 def generate_terms(cfg: dict, subject: str, script: str) -> list[str]:
     """Search terms, in script order, for a script the user wrote themselves."""
     sentences = [s for s in re.split(r"(?<=[.!?؟])\s+|\n+", script) if s.strip()]
-    return [t[0] for t in terms_for_scenes(cfg, subject, sentences) if t]
+    return [t[0] for t in terms_for_scenes(cfg, subject, sentences)[0] if t]

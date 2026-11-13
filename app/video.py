@@ -10,6 +10,7 @@ from .config import FONTS_DIR
 SIZES = {"9:16": (1080, 1920), "16:9": (1920, 1080), "1:1": (1080, 1080)}
 FPS = 30
 XFADE = 0.35
+IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
 _TRANSITIONS = ["fade", "smoothleft", "fade", "smoothup", "fade", "circleopen", "fade", "smoothright"]
 
 
@@ -42,6 +43,13 @@ def duration(path) -> float:
     return int(h) * 3600 + int(mi) * 60 + float(s)
 
 
+def _video_width(path) -> int:
+    p = subprocess.run([ffmpeg_bin(), "-hide_banner", "-i", str(path)],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    m = re.search(r"Video:.*?(\d{3,5})x(\d{3,5})", p.stderr)
+    return int(m.group(1)) if m else 1080
+
+
 def _motion(w: int, h: int, length: float, i: int) -> str:
     """Scale to cover the frame (plus margin), then slowly pan across it — a gentle 'Ken Burns' move."""
     mw, mh = int(w * 1.12) // 2 * 2, int(h * 1.12) // 2 * 2
@@ -58,7 +66,23 @@ def _motion(w: int, h: int, length: float, i: int) -> str:
             f"eq=contrast=1.06:saturation=1.15,format=yuv420p")
 
 
+def _image_segment(src: Path, out: Path, length: float, w: int, h: int, i: int) -> None:
+    """A still picture shown whole (nothing cut off) over a blurred copy of itself, with a slow camera move."""
+    mw, mh = int(w * 1.08) // 2 * 2, int(h * 1.08) // 2 * 2
+    d = max(length, 0.1)
+    x = f"(iw-ow)*t/{d:.3f}" if i % 2 == 0 else f"(iw-ow)*(1-t/{d:.3f})"
+    fc = (f"[0:v]scale={mw}:{mh}:force_original_aspect_ratio=increase,crop={mw}:{mh},"
+          f"boxblur=30:3,eq=brightness=-0.12:saturation=1.1[bg];"
+          f"[0:v]scale={int(mw * 0.88)}:{int(mh * 0.80)}:force_original_aspect_ratio=decrease[fg];"
+          f"[bg][fg]overlay=(W-w)/2:(H-h)/2,crop={w}:{h}:x='{x}':y='(ih-oh)/2',"
+          f"setsar=1,fps={FPS},format=yuv420p[v]")
+    _run(["-loop", "1", "-framerate", FPS, "-i", src, "-t", f"{length:.3f}", "-filter_complex", fc,
+          "-map", "[v]", "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-r", FPS, out])
+
+
 def _segment(src: Path, out: Path, length: float, w: int, h: int, i: int) -> None:
+    if Path(src).suffix.lower() in IMAGE_EXT:
+        return _image_segment(src, out, length, w, h, i)
     try:
         src_len = duration(src)
     except RuntimeError:
@@ -122,9 +146,11 @@ def to_wav(src: Path, dst: Path) -> None:
 
 
 def final_mix(track: Path, voice: Path, ass: Path | None, bgm: Path | None, out: Path,
-              total: float, voice_vol: float, bgm_vol: float) -> Path:
-    """Burn subtitles and mix voice + background music (music dips while the voice speaks).
-    Runs inside the task folder so paths stay relative (avoids Windows drive-letter escaping problems)."""
+              total: float, voice_vol: float, bgm_vol: float,
+              logos: list[Path] | None = None, logo_size: float = 0.14, logo_corner: str = "right") -> Path:
+    """Burn subtitles, put the logos in the top corners and mix voice + background music
+    (music dips while the voice speaks). Runs inside the task folder so paths stay relative
+    (avoids Windows drive-letter escaping problems)."""
     work = out.parent
     inputs = ["-i", track.name, "-i", voice.name]
     if bgm:
@@ -133,15 +159,34 @@ def final_mix(track: Path, voice: Path, ass: Path | None, bgm: Path | None, out:
             shutil.copy(bgm, local_bgm)
         inputs += ["-stream_loop", "-1", "-i", local_bgm.name]
 
+    chain = []
+    cur = "0:v"
     if ass:
         fonts = work / "fonts"
         if not fonts.exists():
             fonts.mkdir()
             for f in FONTS_DIR.glob("*.[ot]tf"):
                 shutil.copy(f, fonts / f.name)
-        vchain = f"[0:v]subtitles={ass.name}:fontsdir=fonts,fade=t=out:st={max(0, total - 0.6):.2f}:d=0.6[v]"
-    else:
-        vchain = f"[0:v]fade=t=out:st={max(0, total - 0.6):.2f}:d=0.6[v]"
+        chain.append(f"[{cur}]subtitles={ass.name}:fontsdir=fonts[vs]")
+        cur = "vs"
+
+    logos = list(logos or [])[:2]
+    if logos:
+        vw = _video_width(track)
+        lw = max(32, int(vw * logo_size)) // 2 * 2
+        margin = int(vw * 0.04)
+        idx = 3 if bgm else 2
+        corners = ["right", "left"] if len(logos) == 2 else [logo_corner]
+        for k, (logo, corner) in enumerate(zip(logos, corners)):
+            local = work / f"logo{k}{logo.suffix.lower()}"
+            shutil.copy(logo, local)
+            inputs += ["-i", local.name]
+            x = f"main_w-overlay_w-{margin}" if corner == "right" else f"{margin}"
+            chain.append(f"[{idx + k}:v]scale={lw}:-2,format=rgba,colorchannelmixer=aa=0.92[lg{k}];"
+                         f"[{cur}][lg{k}]overlay=x={x}:y={margin}[vl{k}]")
+            cur = f"vl{k}"
+    chain.append(f"[{cur}]fade=t=out:st={max(0, total - 0.6):.2f}:d=0.6[v]")
+    vchain = ";".join(chain)
 
     fade_st = max(0.0, total - 2)
     if bgm:

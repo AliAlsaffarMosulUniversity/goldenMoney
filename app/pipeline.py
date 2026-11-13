@@ -5,7 +5,7 @@ import re
 import time
 from pathlib import Path
 
-from . import llm, materials, subtitles, tts, video
+from . import assets, llm, materials, subtitles, tts, video
 from .config import MUSIC_DIR, STORAGE
 
 AUDIO_EXT = {".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac"}
@@ -49,31 +49,53 @@ def run(cfg: dict, subject: str, script: str = "", terms: list[str] | None = Non
     task.mkdir(parents=True, exist_ok=True)
     log(f"📁 task folder: {task}")
 
-    # 1) scenes: from the AI, or from the user's own script + ordered search terms
-    title, scenes = "", None
+    # 1) scenes: one per sentence of the AI's or the user's script
+    title = ""
     if not script.strip():
         log("✍️ writing the script with AI…")
         res = llm.generate_script(cfg, subject)
-        title, script = res["title"], res["script"]
-        scenes = res.get("scenes") or split_scenes(script, res.get("search_terms") or [subject])
-    if scenes is None:
-        scenes = split_scenes(script, terms or [])
-        if not terms and cfg.get("video_source") != "local":
-            log("🧠 understanding the script to choose matching footage…")
-            try:
-                per_scene = llm.terms_for_scenes(cfg, subject, [s["text"] for s in scenes])
-            except RuntimeError as e:
+        title = res["title"]
+        script = "\n".join(sc["text"] for sc in res["scenes"])
+    scenes = split_scenes(script, terms or [])
+    sentences = [s["text"] for s in scenes]
+
+    # 2) understand each sentence: footage search terms + which of the user's own pictures fits it
+    images = [i for i in assets.list_images() if i["enabled"]] if cfg.get("use_my_images", True) else []
+    picks: list = [None] * len(scenes)
+    if (not terms and cfg.get("video_source") != "local") or images:
+        log("🧠 understanding the script to choose matching footage…")
+        try:
+            per_scene, picks = llm.terms_for_scenes(cfg, subject, sentences,
+                                                    [i["desc"] or Path(i["name"]).stem for i in images])
+            if not terms:
+                pool = [t for ts in per_scene for t in ts]
+                for sc, ts in zip(scenes, per_scene):
+                    sc["terms"] = ts + [t for t in pool if t not in ts]
+        except RuntimeError as e:
+            if not terms and cfg.get("video_source") != "local":
                 raise RuntimeError("لم أستطع فهم السكربت لاختيار المقاطع، لأن الذكاء الاصطناعي لا يعمل:\n" + str(e)
                                    + "\n\nأصلح إعدادات الذكاء الاصطناعي، أو اكتب كلمات البحث يدوياً في «خيارات متقدمة».") from e
-            pool = [t for ts in per_scene for t in ts]
-            for sc, ts in zip(scenes, per_scene):
-                sc["terms"] = ts + [t for t in pool if t not in ts]
-        for sc in scenes:
-            sc["terms"] = sc["terms"] or [subject]
-    for i, sc in enumerate(scenes, 1):
-        log(f"🎬 scene {i}: {sc['text'][:60]}  →  {sc['terms'][0]}")
+            log("⚠️ AI unavailable: placing your pictures by matching their descriptions")
+            picks = assets.match_by_words(sentences, images)
+        # every picture the user added should appear: unplaced ones fill scenes that have none
+        placed = {p for p in picks if p is not None}
+        unplaced = [k for k in range(len(images)) if k not in placed]
+        free = [i for i, p in enumerate(picks) if p is None]
+        if unplaced and free:
+            extra = assets.match_by_words([sentences[i] for i in free], [images[k] for k in unplaced])
+            for slot, j in zip(free, extra):
+                if j is not None:
+                    picks[slot] = unplaced[j]
+    for sc, k in zip(scenes, picks):
+        sc["terms"] = sc["terms"] or [subject]
+        if k is not None:
+            sc["image"], sc["image_desc"] = str(images[k]["path"]), images[k]["desc"]
+            log(f"🖼️ your picture «{images[k]['desc'] or images[k]['name']}» → «{sc['text'][:40]}»")
 
-    # 2) voice-over, one sentence at a time (exact timing for each scene)
+    for i, sc in enumerate(scenes, 1):
+        log(f"🎬 scene {i}: {sc['text'][:60]}  →  {'🖼️' if sc.get('image') else sc['terms'][0]}")
+
+    # 3) voice-over, one sentence at a time (exact timing for each scene)
     log("🎙️ generating voice-over…")
     words, wavs, t = [], [], 0.0
     for i, sc in enumerate(scenes):
@@ -93,19 +115,24 @@ def run(cfg: dict, subject: str, script: str = "", terms: list[str] | None = Non
     (task / "scenes.json").write_text(json.dumps({"subject": subject, "title": title, "scenes": scenes},
                                                  ensure_ascii=False, indent=2), encoding="utf-8")
 
-    # 3) subtitles
+    # 4) subtitles
     ass = None
     if cfg.get("subtitles", True) and words:
         w, h = video.SIZES[cfg["aspect"]]
         ass = task / "subtitles.ass"
-        subtitles.write_ass(words, str(ass), w, h, cfg)
+        captions, t0 = [], 0.0
+        for sc in scenes:
+            if sc.get("image") and sc.get("image_desc") and cfg.get("image_captions", False):
+                captions.append((t0, t0 + sc["duration"], sc["image_desc"]))
+            t0 += sc["duration"]
+        subtitles.write_ass(words, str(ass), w, h, cfg, captions)
         log("💬 subtitles ready")
 
-    # 4) footage, scene by scene
+    # 5) footage, scene by scene
     log("🔎 collecting footage…")
     scene_clips = materials.clips_for_scenes(cfg, scenes, STORAGE / "cache", log=log)
 
-    # 5) assemble
+    # 6) assemble
     log("🛠️ assembling…")
     track = video.build_track(scene_clips, [s["duration"] for s in scenes], cfg["aspect"],
                               float(cfg.get("clip_duration", 3)), task, log=log)
@@ -113,7 +140,12 @@ def run(cfg: dict, subject: str, script: str = "", terms: list[str] | None = Non
     if bgm:
         log(f"🎵 music: {bgm.name}")
     log("🔥 rendering final video…")
+    logos = assets.list_logos()[:2] if cfg.get("use_logos", True) else []
+    if logos:
+        log(f"🏷️ logos: {', '.join(p.name for p in logos)}")
     out = video.final_mix(track, voice, ass, bgm, task / "final.mp4", total,
-                          float(cfg.get("voice_volume", 1.0)), float(cfg.get("bgm_volume", 0.15)))
+                          float(cfg.get("voice_volume", 1.0)), float(cfg.get("bgm_volume", 0.15)),
+                          logos=logos, logo_size=float(cfg.get("logo_size", 0.14)),
+                          logo_corner=cfg.get("logo_corner", "right"))
     log(f"✅ done: {out}")
     return {"video": out, "script": script, "title": title, "terms": terms, "task": task}

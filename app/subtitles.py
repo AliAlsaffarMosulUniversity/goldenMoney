@@ -31,7 +31,8 @@ def _col(hex_color):
     return f"&H{h[4:6]}{h[2:4]}{h[0:2]}&".upper()
 
 
-def write_ass(words, path, width, height, cfg):
+def write_ass(words, path, width, height, cfg, captions=None):
+    """captions: optional [(start, end, text)] shown at the top, e.g. descriptions of the user's pictures."""
     portrait = height > width
     size = int(cfg.get("font_size") or (width * (0.085 if portrait else 0.055)))
     max_words = 3 if portrait else 5
@@ -52,6 +53,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Caption,{font},{int(size * 0.55)},&H00FFFFFF,&H000000FF,&H50000000,&HA0000000,-1,0,0,0,100,100,0,0,3,{max(6, size // 7)},0,8,{int(width*0.08)},{int(width*0.08)},{int(height * (0.13 if portrait else 0.09))},1
 Style: Default,{font},{size},{base.replace('&H', '&H00').rstrip('&')},&H000000FF,{outline_c},&H96000000,-1,0,0,0,100,100,0,0,1,{max(3, size // 11)},{max(2, size // 25)},{align},{int(width*0.07)},{int(width*0.07)},{margin_v},1
 
 [Events]
@@ -72,5 +74,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 parts.reverse()
             pop = r"{\fscx85\fscy85\t(0,90,\fscx100\fscy100)}" if k == 0 else ""
             events.append(f"Dialogue: 0,{_ts(start)},{_ts(end)},Default,,0,0,0,,{pop}{' '.join(parts)}")
+    for start, end, text in captions or []:
+        text = str(text).replace("{", "(").replace("}", ")").replace("\n", " ")
+        events.append(f"Dialogue: 1,{_ts(start + 0.2)},{_ts(end - 0.2)},Caption,,0,0,0,,{{\\fad(250,250)}}{text}")
     with open(path, "w", encoding="utf-8") as f:
         f.write(head + "\n".join(events) + "\n")

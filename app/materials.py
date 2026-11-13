@@ -87,14 +87,18 @@ def clips_for_scenes(cfg, scenes, cache: Path, log=print):
     if cfg.get("video_source") == "local":
         folder = Path(cfg.get("local_clips_dir") or "")
         clips = [p for p in folder.glob("**/*") if p.suffix.lower() in VIDEO_EXT] if folder.is_dir() else []
-        if not clips:
+        if not clips and not all(sc.get("image") for sc in scenes):
             raise RuntimeError(f"No video files found in folder: {folder}")
         random.shuffle(clips)
-        return [clips[i::len(scenes)] or clips for i in range(len(scenes))]
+        return [[Path(sc["image"])] if sc.get("image") else (clips[i::len(scenes)] or clips)
+                for i, sc in enumerate(scenes)]
 
     cache.mkdir(parents=True, exist_ok=True)
     used, result = set(), []
     for n, sc in enumerate(scenes, 1):
+        if sc.get("image"):  # the user's own picture fills this scene
+            result.append([Path(sc["image"])])
+            continue
         need = max(1, round(sc["duration"] / clip_len))
         picked = []
         for term in sc["terms"]:
@@ -118,8 +122,8 @@ def clips_for_scenes(cfg, scenes, cache: Path, log=print):
         result.append(picked)
 
     # a scene with no matches borrows clips from its neighbours
-    pool = [p for clips in result for p in clips]
-    if not pool:
+    pool = [p for clips in result for p in clips if p.suffix.lower() in VIDEO_EXT]
+    if not pool and not all(result):
         raise RuntimeError("No matching clips were found. Try different English search terms.")
     for i, clips in enumerate(result):
         if not clips:

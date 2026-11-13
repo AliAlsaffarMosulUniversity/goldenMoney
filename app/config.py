@@ -33,6 +33,11 @@ DEFAULTS = {
     "bgm": "random",
     "bgm_volume": 0.15,
     "paragraphs": 2,
+    "use_my_images": True,
+    "image_captions": False,
+    "use_logos": True,
+    "logo_size": 0.14,
+    "logo_corner": "right",
 }
 
 

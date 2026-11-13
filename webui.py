@@ -1,7 +1,7 @@
 """AutoShorts web UI — run with: streamlit run webui.py"""
 import streamlit as st
 
-from app import llm, pipeline, tts
+from app import assets, llm, pipeline, tts
 from app.config import MUSIC_DIR, load_config, save_config
 
 st.set_page_config(page_title="AutoShorts", page_icon="🎬", layout="wide")
@@ -116,6 +116,67 @@ with col3:
     cfg["bgm_volume"] = st.slider("مستوى صوت الموسيقى", 0.0, 1.0, float(cfg["bgm_volume"]), 0.05)
     if not music:
         st.caption(f"لا توجد موسيقى بعد — ضع ملفات MP3 في:\n`{MUSIC_DIR}`")
+
+# ---------------- Optional: the user's own pictures and logos ----------------
+st.session_state.setdefault("up_n", 0)
+n_imgs, n_logos = len(assets.list_images()), len(assets.list_logos())
+with st.expander(f"🖼️ صوري وشعاراتي (اختياري) — {n_imgs} صورة، {n_logos} شعار"):
+    c_img, c_logo = st.columns([3, 2])
+
+    with c_logo:
+        st.markdown("**🏷️ الشعارات** (مثلاً شعار الكلية والجامعة)")
+        st.caption("تظهر طوال الفيديو في الزاويتين العلويتين. الأفضل صورة PNG بخلفية شفافة.")
+        cfg["use_logos"] = st.toggle("إضافة الشعارات للفيديو", cfg.get("use_logos", True))
+        new_logos = st.file_uploader("رفع شعار (حتى شعارين)", type=["png", "jpg", "jpeg", "webp"],
+                                     accept_multiple_files=True, key=f"logos_{st.session_state.up_n}")
+        if new_logos:
+            for f in new_logos:
+                assets.add_logo(f.name, f.getvalue())
+            st.session_state.up_n += 1
+            st.rerun()
+        logos = assets.list_logos()
+        for i, lp in enumerate(logos):
+            l1, l2 = st.columns([3, 1])
+            l1.image(str(lp), width=110, caption=("يمين" if i == 0 else "يسار") if len(logos) >= 2 else None)
+            if l2.button("🗑️", key=f"dl_{lp.name}", help="حذف الشعار"):
+                assets.delete_logo(lp.name)
+                st.rerun()
+        if len(logos) > 2:
+            st.warning("يُستخدم أول شعارين فقط.")
+        if len(logos) == 1:
+            corners = {"right": "يمين", "left": "يسار"}
+            cfg["logo_corner"] = st.radio("مكان الشعار", list(corners), format_func=corners.get, horizontal=True,
+                                          index=list(corners).index(cfg.get("logo_corner", "right")))
+        cfg["logo_size"] = st.slider("حجم الشعار", 0.08, 0.25, float(cfg.get("logo_size", 0.14)), 0.01)
+
+    with c_img:
+        st.markdown("**📷 صوري الخاصة**")
+        st.caption("ارفع صورك واكتب وصفاً لكل صورة. الأداة تفهم الوصف وتضع كل صورة في الجملة التي تتكلم عنها.")
+        cfg["use_my_images"] = st.toggle("استخدام صوري في الفيديو", cfg.get("use_my_images", True))
+        cfg["image_captions"] = st.toggle("كتابة وصف الصورة عليها كعنوان", cfg.get("image_captions", False))
+        new_imgs = st.file_uploader("رفع صور", type=["png", "jpg", "jpeg", "webp"],
+                                    accept_multiple_files=True, key=f"imgs_{st.session_state.up_n}")
+        if new_imgs:
+            for f in new_imgs:
+                assets.add_image(f.name, f.getvalue())
+            st.session_state.up_n += 1
+            st.rerun()
+        for img in assets.list_images():
+            i1, i2 = st.columns([1, 3])
+            i1.image(str(img["path"]), width=120)
+            desc = i2.text_input("وصف الصورة", img["desc"], key=f"desc_{img['name']}",
+                                 placeholder="مثال: مبنى كلية الإدارة والاقتصاد من الخارج")
+            if desc != img["desc"]:
+                assets.update_image(img["name"], desc=desc)
+            b1, b2 = i2.columns(2)
+            on = b1.checkbox("استخدامها", img["enabled"], key=f"en_{img['name']}")
+            if on != img["enabled"]:
+                assets.update_image(img["name"], enabled=on)
+            if b2.button("🗑️ حذف", key=f"di_{img['name']}"):
+                assets.delete_image(img["name"])
+                st.rerun()
+            if not desc:
+                i2.caption("⚠️ اكتب وصفاً حتى توضع الصورة في المكان المناسب.")
 
 st.divider()
 if st.button("🚀 إنشاء الفيديو", type="primary", use_container_width=True):
