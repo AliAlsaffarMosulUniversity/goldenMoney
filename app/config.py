@@ -33,6 +33,7 @@ DEFAULTS = {
     "bgm": "random",
     "bgm_volume": 0.15,
     "paragraphs": 2,
+    "ui_mode": "night",
     "use_my_images": True,
     "image_captions": False,
     "use_logos": True,

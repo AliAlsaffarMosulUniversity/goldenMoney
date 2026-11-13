@@ -7,10 +7,20 @@ from app.config import MUSIC_DIR, load_config, save_config
 st.set_page_config(page_title="AutoShorts", page_icon="🎬", layout="wide")
 from pathlib import Path
 
-st.markdown(f"<style>{(Path(__file__).parent / 'app' / 'ui.css').read_text(encoding='utf-8')}</style>",
-            unsafe_allow_html=True)
+from app.themes import THEMES, css_vars
 
 cfg = load_config()
+
+# ---- day / night theme: Streamlit picks up theme options on the next run, so re-run once after a change ----
+_mode = cfg.get("ui_mode", "night")
+if st.session_state.get("_applied_theme") != _mode:
+    for k, v in THEMES[_mode]["streamlit"].items():
+        st._config.set_option(f"theme.{k}", v)
+    st.session_state["_applied_theme"] = _mode
+    st.rerun()
+st.markdown(f"<style>{css_vars(_mode)}\n{(Path(__file__).parent / 'app' / 'ui.css').read_text(encoding='utf-8')}</style>",
+            unsafe_allow_html=True)
+
 
 # ---------------- Settings (sidebar) ----------------
 with st.sidebar:
@@ -108,13 +118,19 @@ def text_to_speech_tool() -> None:
             st.caption(f"📁 {res['mp3']}")
 
 
+with st.container(key="theme_bar"):
+    _, tb = st.columns([5, 1])
+    if tb.button("☀️ الوضع النهاري" if _mode == "night" else "🌙 الوضع الليلي", use_container_width=True, key="theme_btn"):
+        cfg["ui_mode"] = "day" if _mode == "night" else "night"
+        save_config(cfg)
+        st.rerun()
 st.markdown("""
 <div class="as-hero">
-  <h1><span class="as-ico">🎬</span>AutoShorts</h1>
+  <h1><span class="as-ico">🎬</span><span class="as-name">AutoShorts</span></h1>
   <div class="as-sub">صانع الفيديوهات القصيرة بالذكاء الاصطناعي — اكتب الفكرة، والأداة تكتب السكربت وتختار المشاهد وتضيف الصوت والترجمة والموسيقى.</div>
   <span class="as-badge">🎬 Reels · Shorts · TikTok</span>
   <span class="as-badge">🎙️ أصوات عربية طبيعية</span>
-  <span class="as-badge amber">✨ مجاني</span>
+  <span class="as-badge gold">✨ مجاني</span>
 </div>
 """, unsafe_allow_html=True)
 tab_video, tab_tts = st.tabs(["🎬 صانع الفيديو", "🔊 تحويل النص إلى صوت"])
