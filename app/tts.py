@@ -35,12 +35,10 @@ VOICES = {
     "ar-DZ-IsmaelNeural": "عربي (الجزائر) - إسماعيل - ذكر",
     "ar-MA-JamalNeural": "عربي (المغرب) - جمال - ذكر",
     # multilingual voices (also read Arabic text)
-    "en-US-AndrewMultilingualNeural": "متعدد اللغات - Andrew - ذكر",
     "en-US-BrianMultilingualNeural": "متعدد اللغات - Brian - ذكر",
     "en-US-AvaMultilingualNeural": "متعدد اللغات - Ava - أنثى",
     "en-US-EmmaMultilingualNeural": "متعدد اللغات - Emma - أنثى",
     # English & others
-    "en-US-AndrewNeural": "English (US) - Andrew - male",
     "en-US-AvaNeural": "English (US) - Ava - female",
     "en-US-GuyNeural": "English (US) - Guy - male",
     "en-US-JennyNeural": "English (US) - Jenny - female",
