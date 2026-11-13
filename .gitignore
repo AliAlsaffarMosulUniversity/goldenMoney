@@ -1,0 +1,9 @@
+config.json
+storage/*
+!storage/.gitkeep
+.venv/
+__pycache__/
+test.mp3
+test.ass
+test.mp4
+*.zip
