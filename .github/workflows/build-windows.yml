@@ -4,6 +4,11 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish as a release (e.g. 1.0.0). Leave empty for a test build."
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -23,7 +28,7 @@ jobs:
 
       - name: Version
         run: |
-          $v = if ($env:GITHUB_REF -like "refs/tags/v*") { $env:GITHUB_REF_NAME.Substring(1) } else { "0.0.$env:GITHUB_RUN_NUMBER" }
+          $v = if ($env:GITHUB_REF -like "refs/tags/v*") { $env:GITHUB_REF_NAME.Substring(1) } elseif ("${{ inputs.version }}") { "${{ inputs.version }}" } else { "0.0.$env:GITHUB_RUN_NUMBER" }
           "APP_VERSION=$v" >> $env:GITHUB_ENV
 
       - name: Portable Python with the app's packages
@@ -95,9 +100,12 @@ jobs:
           path: dist/AutoShorts-Setup.exe
 
       - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.version != ''
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ env.APP_VERSION }}
+          name: AutoShorts ${{ env.APP_VERSION }}
+          target_commitish: ${{ github.sha }}
           files: dist/AutoShorts-Setup.exe
           body: |
             ثبّت الأداة على ويندوز: نزّل AutoShorts-Setup.exe وشغّله. يحتاج الاتصال بالإنترنت فقط.
