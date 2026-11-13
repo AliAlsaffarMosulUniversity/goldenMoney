@@ -1,0 +1,103 @@
+name: Build Windows installer
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Version
+        run: |
+          $v = if ($env:GITHUB_REF -like "refs/tags/v*") { $env:GITHUB_REF_NAME.Substring(1) } else { "0.0.$env:GITHUB_RUN_NUMBER" }
+          "APP_VERSION=$v" >> $env:GITHUB_ENV
+
+      - name: Portable Python with the app's packages
+        run: |
+          $ErrorActionPreference = "Stop"; $PSNativeCommandUseErrorActionPreference = $true
+          $app = "build\app"
+          New-Item -ItemType Directory -Force $app | Out-Null
+          Invoke-WebRequest https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip -OutFile py.zip
+          Expand-Archive py.zip "$app\python"
+          Set-Content "$app\python\python312._pth" "python312.zip`n.`nLib\site-packages`n..`nimport site"
+          Invoke-WebRequest https://bootstrap.pypa.io/get-pip.py -OutFile get-pip.py
+          & "$app\python\python.exe" get-pip.py --no-warn-script-location
+          & "$app\python\python.exe" -m pip install --no-warn-script-location -r requirements.txt
+
+      - name: FFmpeg
+        run: |
+          $ErrorActionPreference = "Stop"
+          Invoke-WebRequest https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip -OutFile ff.zip
+          Expand-Archive ff.zip ff
+          New-Item -ItemType Directory -Force build\app\ffmpeg | Out-Null
+          Copy-Item (Get-ChildItem ff -Recurse -Filter ffmpeg.exe | Select-Object -First 1).FullName build\app\ffmpeg\
+
+      - name: App files
+        run: |
+          Copy-Item -Recurse app, resource build\app\
+          Copy-Item webui.py, cli.py, requirements.txt, README.md build\app\
+          Remove-Item -Recurse -Force build\app\app\__pycache__ -ErrorAction SilentlyContinue
+
+      - name: Launcher (AutoShorts.exe)
+        run: |
+          $ErrorActionPreference = "Stop"; $PSNativeCommandUseErrorActionPreference = $true
+          python -m pip install pyinstaller
+          pyinstaller --onefile --console --name AutoShorts --icon resource\icon.ico --distpath build\app packaging\launcher.py
+
+      - name: Smoke test (real voice + render on Windows)
+        run: |
+          $ErrorActionPreference = "Stop"; $PSNativeCommandUseErrorActionPreference = $true
+          Copy-Item packaging\smoke_test.py build\app\
+          Push-Location build\app
+          $env:PATH = "$PWD\ffmpeg;$env:PATH"
+          .\python\python.exe -c "import streamlit, edge_tts, openai, anthropic, requests; from app import pipeline, llm; print('imports OK')"
+          .\python\python.exe smoke_test.py
+          Remove-Item smoke_test.py
+          $p = Start-Process .\python\python.exe -ArgumentList "-m streamlit run webui.py --server.headless true --server.port 8501 --browser.gatherUsageStats false" -PassThru
+          $ok = $false
+          for ($i = 0; $i -lt 60 -and -not $ok; $i++) {
+            Start-Sleep 2
+            try { $ok = (Invoke-WebRequest http://localhost:8501/_stcore/health -UseBasicParsing).StatusCode -eq 200 } catch {}
+          }
+          Stop-Process -Id $p.Id -Force
+          Remove-Item -Recurse -Force storage, config.json -ErrorAction SilentlyContinue
+          Get-ChildItem -Recurse -Directory -Filter __pycache__ app | Remove-Item -Recurse -Force
+          Pop-Location
+          if (-not $ok) { throw "web UI did not start" }
+          "web UI OK"
+
+      - name: Installer (AutoShorts-Setup.exe)
+        run: |
+          $ErrorActionPreference = "Stop"; $PSNativeCommandUseErrorActionPreference = $true
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
+          & $iscc packaging\installer.iss
+          Get-Item dist\AutoShorts-Setup.exe | Format-List Name, Length
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AutoShorts-Setup
+          path: dist/AutoShorts-Setup.exe
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/AutoShorts-Setup.exe
+          body: |
+            ثبّت الأداة على ويندوز: نزّل AutoShorts-Setup.exe وشغّله. يحتاج الاتصال بالإنترنت فقط.
+            Windows installer: download AutoShorts-Setup.exe and run it. Requires an internet connection.
