@@ -38,7 +38,32 @@ Return JSON exactly in this shape:
 {{"title": "...", "scenes": [{{"text": "sentence", "terms": ["...", "..."]}}]}}"""
 
 
+_HINTS = {
+    400: "الطلب مرفوض. غالباً اسم النموذج غير مناسب، أو الخدمة غير متاحة في بلدك.",
+    401: "المفتاح (API Key) غير صحيح. انسخه من جديد والصقه في الإعدادات ثم احفظ.",
+    402: "رصيد حسابك في الخدمة انتهى.",
+    403: "الخدمة رفضت الاتصال من جهازك. غالباً هي محجوبة في بلدك. جرّب مزوّد OpenRouter.",
+    404: "اسم النموذج غير موجود. اكتب اسم نموذج صحيحاً في خانة «اسم النموذج»، أو اتركها فارغة.",
+    429: "تجاوزت الحد المجاني المسموح. انتظر دقيقة ثم أعد المحاولة.",
+}
+
+
 def _call(cfg: dict, prompt: str) -> str:
+    """Call the provider and turn API errors into a clear Arabic message."""
+    if not cfg.get("llm_api_key") and cfg.get("llm_provider") != "ollama":
+        raise RuntimeError("أدخل مفتاح الذكاء الاصطناعي (API Key) في الإعدادات ثم اضغط حفظ.")
+    try:
+        return _call_raw(cfg, prompt)
+    except RuntimeError:
+        raise
+    except Exception as e:
+        label = PROVIDERS.get(cfg.get("llm_provider"), PROVIDERS["custom"])["label"]
+        status = getattr(e, "status_code", None)
+        hint = _HINTS.get(status) or ("تعذّر الاتصال بالخدمة. تأكد من الإنترنت." if status is None else "خطأ من الخدمة.")
+        raise RuntimeError(f"{label}: {hint}\n\n({type(e).__name__}: {str(e)[:300]})") from e
+
+
+def _call_raw(cfg: dict, prompt: str) -> str:
     provider = cfg.get("llm_provider", "gemini")
     preset = PROVIDERS.get(provider, PROVIDERS["custom"])
     model = cfg.get("llm_model") or preset["model"]
