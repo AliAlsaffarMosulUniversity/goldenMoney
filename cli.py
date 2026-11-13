@@ -1,8 +1,16 @@
 """Command-line use:  python cli.py "video subject" [--aspect 16:9] [--script-file s.txt]"""
 import argparse
+import sys
 
 from app import pipeline
 from app.config import load_config
+
+# Windows consoles may not support emoji in the progress messages
+for stream in (sys.stdout, sys.stderr):
+    try:
+        stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 ap = argparse.ArgumentParser(description="AutoShorts: make a short video from a subject")
 ap.add_argument("subject")

@@ -15,9 +15,9 @@ jobs:
       run:
         shell: pwsh
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -64,6 +64,7 @@ jobs:
           Copy-Item packaging\smoke_test.py build\app\
           Push-Location build\app
           $env:PATH = "$PWD\ffmpeg;$env:PATH"
+          $env:PYTHONUTF8 = "1"
           .\python\python.exe -c "import streamlit, edge_tts, openai, anthropic, requests; from app import pipeline, llm; print('imports OK')"
           .\python\python.exe smoke_test.py
           Remove-Item smoke_test.py
