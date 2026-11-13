@@ -2,16 +2,44 @@
 import asyncio
 
 VOICES = {
-    "ar-SA-HamedNeural": "عربي (السعودية) - حامد - ذكر",
-    "ar-SA-ZariyahNeural": "عربي (السعودية) - زارية - أنثى",
+    # Iraq
     "ar-IQ-BasselNeural": "عربي (العراق) - باسل - ذكر",
     "ar-IQ-RanaNeural": "عربي (العراق) - رنا - أنثى",
-    "ar-EG-ShakirNeural": "عربي (مصر) - شاكر - ذكر",
-    "ar-EG-SalmaNeural": "عربي (مصر) - سلمى - أنثى",
+    # Gulf
+    "ar-SA-HamedNeural": "عربي (السعودية) - حامد - ذكر",
+    "ar-SA-ZariyahNeural": "عربي (السعودية) - زارية - أنثى",
+    "ar-KW-FahedNeural": "عربي (الكويت) - فهد - ذكر",
+    "ar-KW-NouraNeural": "عربي (الكويت) - نورة - أنثى",
     "ar-AE-HamdanNeural": "عربي (الإمارات) - حمدان - ذكر",
     "ar-AE-FatimaNeural": "عربي (الإمارات) - فاطمة - أنثى",
+    "ar-QA-MoazNeural": "عربي (قطر) - معاذ - ذكر",
+    "ar-QA-AmalNeural": "عربي (قطر) - أمل - أنثى",
+    "ar-BH-AliNeural": "عربي (البحرين) - علي - ذكر",
+    "ar-BH-LailaNeural": "عربي (البحرين) - ليلى - أنثى",
+    "ar-OM-AbdullahNeural": "عربي (عُمان) - عبدالله - ذكر",
+    "ar-OM-AyshaNeural": "عربي (عُمان) - عائشة - أنثى",
+    "ar-YE-SalehNeural": "عربي (اليمن) - صالح - ذكر",
+    "ar-YE-MaryamNeural": "عربي (اليمن) - مريم - أنثى",
+    # Levant
     "ar-JO-TaimNeural": "عربي (الأردن) - تيم - ذكر",
+    "ar-JO-SanaNeural": "عربي (الأردن) - سناء - أنثى",
     "ar-SY-LaithNeural": "عربي (سوريا) - ليث - ذكر",
+    "ar-SY-AmanyNeural": "عربي (سوريا) - أماني - أنثى",
+    "ar-LB-RamiNeural": "عربي (لبنان) - رامي - ذكر",
+    "ar-LB-LaylaNeural": "عربي (لبنان) - ليلى - أنثى",
+    # Egypt & North Africa
+    "ar-EG-ShakirNeural": "عربي (مصر) - شاكر - ذكر",
+    "ar-EG-SalmaNeural": "عربي (مصر) - سلمى - أنثى",
+    "ar-LY-OmarNeural": "عربي (ليبيا) - عمر - ذكر",
+    "ar-TN-HediNeural": "عربي (تونس) - الهادي - ذكر",
+    "ar-DZ-IsmaelNeural": "عربي (الجزائر) - إسماعيل - ذكر",
+    "ar-MA-JamalNeural": "عربي (المغرب) - جمال - ذكر",
+    # multilingual voices (also read Arabic text)
+    "en-US-AndrewMultilingualNeural": "متعدد اللغات - Andrew - ذكر",
+    "en-US-BrianMultilingualNeural": "متعدد اللغات - Brian - ذكر",
+    "en-US-AvaMultilingualNeural": "متعدد اللغات - Ava - أنثى",
+    "en-US-EmmaMultilingualNeural": "متعدد اللغات - Emma - أنثى",
+    # English & others
     "en-US-AndrewNeural": "English (US) - Andrew - male",
     "en-US-AvaNeural": "English (US) - Ava - female",
     "en-US-GuyNeural": "English (US) - Guy - male",
@@ -22,6 +50,13 @@ VOICES = {
     "es-ES-AlvaroNeural": "Español - Álvaro - male",
     "tr-TR-AhmetNeural": "Türkçe - Ahmet - male",
 }
+
+SAMPLE_AR = "جامعة الموصل جميلة جداً، وجميع الجهود تُبذل لإنجاز المشاريع الجديدة."
+SAMPLE_EN = "Hello! This is a short sample of how this voice sounds."
+
+
+def sample_text(voice: str) -> str:
+    return SAMPLE_AR if voice.startswith("ar-") or "Multilingual" in voice else SAMPLE_EN
 
 
 async def _synthesize(text: str, voice: str, rate: int, out_path: str, pitch: int = 0, volume: int = 0) -> list[dict]:

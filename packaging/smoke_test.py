@@ -16,6 +16,14 @@ words = tts.synthesize("مرحباً، هذا اختبار للأداة على �
 assert words, "no word timings from Edge TTS"
 assert tts.synthesize("اختبار طبقة الصوت", "ar-SA-ZariyahNeural", 10, str(work / "p.mp3"), 5, -10), "pitch/volume failed"
 subtitles.write_srt(words, str(work / "v.srt"))
+bad = []
+for v in tts.VOICES:  # every voice offered in the app must really exist
+    try:
+        tts.synthesize(tts.sample_text(v)[:25], v, 0, str(work / "s.mp3"))
+    except Exception as e:
+        bad.append(f"{v}: {e}")
+print(f"voices checked: {len(tts.VOICES)}, failed: {len(bad)}")
+assert not bad, "\n".join(bad)
 video.to_wav(work / "v.mp3", work / "voice.wav")
 total = video.duration(work / "voice.wav") + 0.5
 subtitles.write_ass(words, str(work / "subtitles.ass"), 1080, 1920, {"font_name": "Arial"})

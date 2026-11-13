@@ -161,6 +161,16 @@ with tab_video:
             voices.insert(0, cfg["voice"])
         cfg["voice"] = st.selectbox("صوت التعليق (Edge TTS مجاني)", voices, index=voices.index(cfg["voice"]),
                                     format_func=lambda v: tts.VOICES.get(v, v))
+        if st.button("▶️ استمع للصوت", key="preview_voice"):
+            from app.config import STORAGE
+            prev = STORAGE / "audio" / "preview.mp3"
+            prev.parent.mkdir(parents=True, exist_ok=True)
+            with st.spinner("…"):
+                try:
+                    tts.synthesize(tts.sample_text(cfg["voice"]), cfg["voice"], int(cfg["voice_rate"]), str(prev))
+                    st.audio(prev.read_bytes(), format="audio/mp3", autoplay=True)
+                except Exception as e:
+                    st.error(str(e))
         cfg["voice_rate"] = st.slider("سرعة الكلام %", -50, 50, int(cfg["voice_rate"]))
         cfg["voice_volume"] = st.slider("مستوى صوت التعليق", 0.0, 2.0, float(cfg["voice_volume"]), 0.1)
 
