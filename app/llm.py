@@ -126,10 +126,29 @@ def generate_script(cfg: dict, subject: str) -> dict:
     return _parse(_call(cfg, prompt))
 
 
+def terms_for_scenes(cfg: dict, subject: str, sentences: list[str]) -> list[list[str]]:
+    """Understand each sentence (in any language) and pick English stock-footage searches for it."""
+    numbered = "\n".join(f"{i + 1}. {t}" for i, t in enumerate(sentences))
+    prompt = (f'Video subject: "{subject}"\n'
+              f"These are the {len(sentences)} sentences of a voice-over, in order:\n{numbered}\n\n"
+              "For EACH sentence, understand what it says and give 2 or 3 short ENGLISH search terms "
+              "(1-3 words each) for stock-footage sites, describing concrete, filmable visuals that "
+              "illustrate that sentence. Avoid abstract words. "
+              f'Return JSON with exactly {len(sentences)} items: {{"scenes": [["term", "term"], ...]}}')
+    data = _json(_call(cfg, prompt))
+    out = []
+    for item in data.get("scenes", []):
+        if isinstance(item, dict):
+            item = item.get("terms", [])
+        if isinstance(item, str):
+            item = [item]
+        out.append([str(t).strip() for t in item if str(t).strip()])
+    # keep the list aligned with the sentences even if the AI returned too few/many items
+    out = (out + [[]] * len(sentences))[:len(sentences)]
+    return out
+
+
 def generate_terms(cfg: dict, subject: str, script: str) -> list[str]:
     """Search terms, in script order, for a script the user wrote themselves."""
-    prompt = (f'Video subject: "{subject}"\nScript:\n{script}\n\n'
-              'For each sentence of this script, in order, give one short ENGLISH stock-footage search term '
-              '(1-3 words, concrete and filmable). Return JSON: {"terms": ["...", "..."]}')
-    data = _json(_call(cfg, prompt))
-    return [str(t).strip() for t in data.get("terms", []) if str(t).strip()]
+    sentences = [s for s in re.split(r"(?<=[.!?؟])\s+|\n+", script) if s.strip()]
+    return [t[0] for t in terms_for_scenes(cfg, subject, sentences) if t]

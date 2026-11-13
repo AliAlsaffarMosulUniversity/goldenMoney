@@ -57,10 +57,19 @@ def run(cfg: dict, subject: str, script: str = "", terms: list[str] | None = Non
         title, script = res["title"], res["script"]
         scenes = res.get("scenes") or split_scenes(script, res.get("search_terms") or [subject])
     if scenes is None:
+        scenes = split_scenes(script, terms or [])
         if not terms and cfg.get("video_source") != "local":
-            log("🔤 generating search terms…")
-            terms = llm.generate_terms(cfg, subject, script)
-        scenes = split_scenes(script, terms or [subject])
+            log("🧠 understanding the script to choose matching footage…")
+            try:
+                per_scene = llm.terms_for_scenes(cfg, subject, [s["text"] for s in scenes])
+            except RuntimeError as e:
+                raise RuntimeError("لم أستطع فهم السكربت لاختيار المقاطع، لأن الذكاء الاصطناعي لا يعمل:\n" + str(e)
+                                   + "\n\nأصلح إعدادات الذكاء الاصطناعي، أو اكتب كلمات البحث يدوياً في «خيارات متقدمة».") from e
+            pool = [t for ts in per_scene for t in ts]
+            for sc, ts in zip(scenes, per_scene):
+                sc["terms"] = ts + [t for t in pool if t not in ts]
+        for sc in scenes:
+            sc["terms"] = sc["terms"] or [subject]
     for i, sc in enumerate(scenes, 1):
         log(f"🎬 scene {i}: {sc['text'][:60]}  →  {sc['terms'][0]}")
 

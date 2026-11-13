@@ -73,12 +73,14 @@ with col1:
             with st.spinner("جاري الكتابة…"):
                 try:
                     res = llm.generate_script(cfg, subject)
-                    st.session_state["script"] = res["script"]
-                    st.session_state["terms"] = ", ".join(res["search_terms"])
+                    st.session_state["script"] = "\n".join(sc["text"] for sc in res["scenes"])
                 except Exception as e:
                     st.error(str(e))
     script = st.text_area("السكربت (اتركه فارغاً ليُكتب تلقائياً)", key="script", height=220)
-    terms_txt = st.text_input("كلمات البحث عن المقاطع (بالإنجليزية، مفصولة بفواصل، وبنفس ترتيب جمل السكربت)", key="terms")
+    st.caption("🧠 المقاطع تُختار تلقائياً: الأداة تفهم كل جملة من السكربت وتبحث عن مشاهد تناسبها.")
+    with st.expander("خيارات متقدمة: كلمات بحث يدوية (اختياري)"):
+        terms_txt = st.text_input("كلمات بحث بالإنجليزية بنفس ترتيب الجمل، مفصولة بفواصل. اتركها فارغة للاختيار التلقائي",
+                                  key="terms")
 
 with col2:
     st.subheader("🎞️ الفيديو")
