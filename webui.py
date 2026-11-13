@@ -5,12 +5,10 @@ from app import assets, llm, pipeline, tts
 from app.config import MUSIC_DIR, load_config, save_config
 
 st.set_page_config(page_title="AutoShorts", page_icon="🎬", layout="wide")
-st.markdown("""<style>
-[data-testid="stAppViewContainer"], [data-testid="stSidebar"], [data-testid="stMain"] {direction: rtl;}
-[data-testid="stMarkdownContainer"], label, p, h1, h2, h3 {text-align: right;}
-[data-testid="stSlider"], [data-testid="stFileUploader"], code, pre {direction: ltr;}
-textarea, input {direction: auto; text-align: right;}
-</style>""", unsafe_allow_html=True)
+from pathlib import Path
+
+st.markdown(f"<style>{(Path(__file__).parent / 'app' / 'ui.css').read_text(encoding='utf-8')}</style>",
+            unsafe_allow_html=True)
 
 cfg = load_config()
 
@@ -110,8 +108,15 @@ def text_to_speech_tool() -> None:
             st.caption(f"📁 {res['mp3']}")
 
 
-st.title("🎬 AutoShorts — صانع الفيديوهات القصيرة")
-st.caption("اكتب موضوع الفيديو، وستتولى الأداة كتابة السكربت واختيار المقاطع والتعليق الصوتي والترجمة والموسيقى.")
+st.markdown("""
+<div class="as-hero">
+  <h1><span class="as-ico">🎬</span>AutoShorts</h1>
+  <div class="as-sub">صانع الفيديوهات القصيرة بالذكاء الاصطناعي — اكتب الفكرة، والأداة تكتب السكربت وتختار المشاهد وتضيف الصوت والترجمة والموسيقى.</div>
+  <span class="as-badge">🎬 Reels · Shorts · TikTok</span>
+  <span class="as-badge">🎙️ أصوات عربية طبيعية</span>
+  <span class="as-badge amber">✨ مجاني</span>
+</div>
+""", unsafe_allow_html=True)
 tab_video, tab_tts = st.tabs(["🎬 صانع الفيديو", "🔊 تحويل النص إلى صوت"])
 
 with tab_tts:

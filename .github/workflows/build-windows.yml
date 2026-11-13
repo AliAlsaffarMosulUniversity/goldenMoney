@@ -53,7 +53,7 @@ jobs:
 
       - name: App files
         run: |
-          Copy-Item -Recurse app, resource build\app\
+          Copy-Item -Recurse app, resource, .streamlit build\app\
           Copy-Item webui.py, cli.py, requirements.txt, README.md build\app\
           Remove-Item -Recurse -Force build\app\app\__pycache__ -ErrorAction SilentlyContinue
 
