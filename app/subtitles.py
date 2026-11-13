@@ -79,3 +79,19 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         events.append(f"Dialogue: 1,{_ts(start + 0.2)},{_ts(end - 0.2)},Caption,,0,0,0,,{{\\fad(250,250)}}{text}")
     with open(path, "w", encoding="utf-8") as f:
         f.write(head + "\n".join(events) + "\n")
+
+
+def write_srt(words, path, max_words=7):
+    """Plain SRT subtitles (for editing software) from word timings."""
+    def ts(sec):
+        ms = int(round(max(sec, 0) * 1000))
+        h, ms = divmod(ms, 3600000)
+        m, ms = divmod(ms, 60000)
+        s, ms = divmod(ms, 1000)
+        return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+    blocks = []
+    for n, chunk in enumerate(_chunks(words, max_words), 1):
+        text = " ".join(w["text"] for w in chunk)
+        blocks.append(f"{n}\n{ts(chunk[0]['start'])} --> {ts(chunk[-1]['end'] + 0.1)}\n{text}\n")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(blocks))

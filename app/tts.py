@@ -24,11 +24,12 @@ VOICES = {
 }
 
 
-async def _synthesize(text: str, voice: str, rate: int, out_path: str) -> list[dict]:
+async def _synthesize(text: str, voice: str, rate: int, out_path: str, pitch: int = 0, volume: int = 0) -> list[dict]:
     import edge_tts
 
     words = []
-    comm = edge_tts.Communicate(text, voice, rate=f"{rate:+d}%", boundary="WordBoundary")
+    comm = edge_tts.Communicate(text, voice, rate=f"{rate:+d}%", pitch=f"{pitch:+d}Hz", volume=f"{volume:+d}%",
+                                boundary="WordBoundary")
     with open(out_path, "wb") as f:
         async for chunk in comm.stream():
             if chunk["type"] == "audio":
@@ -39,9 +40,9 @@ async def _synthesize(text: str, voice: str, rate: int, out_path: str) -> list[d
     return words
 
 
-def synthesize(text: str, voice: str, rate: int, out_path: str) -> list[dict]:
+def synthesize(text: str, voice: str, rate: int, out_path: str, pitch: int = 0, volume: int = 0) -> list[dict]:
     """Write an MP3 and return word timings [{text, start, end}] in seconds."""
     try:
-        return asyncio.run(_synthesize(text, voice, rate, out_path))
+        return asyncio.run(_synthesize(text, voice, rate, out_path, pitch, volume))
     except Exception as e:  # network problems, bad voice name, etc.
         raise RuntimeError(f"Edge TTS failed ({e}). Check your internet connection and the voice name.") from e

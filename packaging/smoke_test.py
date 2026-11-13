@@ -14,6 +14,8 @@ work.mkdir(parents=True, exist_ok=True)
 print("ffmpeg:", video.ffmpeg_bin())
 words = tts.synthesize("مرحباً، هذا اختبار للأداة على ويندوز", "ar-IQ-BasselNeural", 0, str(work / "v.mp3"))
 assert words, "no word timings from Edge TTS"
+assert tts.synthesize("اختبار طبقة الصوت", "ar-SA-ZariyahNeural", 10, str(work / "p.mp3"), 5, -10), "pitch/volume failed"
+subtitles.write_srt(words, str(work / "v.srt"))
 video.to_wav(work / "v.mp3", work / "voice.wav")
 total = video.duration(work / "voice.wav") + 0.5
 subtitles.write_ass(words, str(work / "subtitles.ass"), 1080, 1920, {"font_name": "Arial"})
