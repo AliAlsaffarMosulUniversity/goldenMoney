@@ -95,3 +95,107 @@ def write_srt(words, path, max_words=7):
         blocks.append(f"{n}\n{ts(chunk[0]['start'])} --> {ts(chunk[-1]['end'] + 0.1)}\n{text}\n")
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(blocks))
+
+
+# ---------------- Ayah video: Quran text on screen ----------------
+QURAN_FONT = "Amiri Quran"   # resource/fonts/AmiriQuran-Regular.ttf (SIL Open Font License)
+QURAN_FONT_SCALE = 1.7       # its tall line spacing makes its letters small for a given font size
+
+
+def _plain_text(text):
+    """Text for an ASS event, shown exactly as given (no override tags, no line breaks)."""
+    return str(text).replace("{", "(").replace("}", ")").replace("\\", "/").replace("\n", " ")
+
+
+def _split_words(text, max_chars):
+    """Cut a text into about equal parts of at most ~max_chars, between words (after a full stop when one is near)."""
+    words = text.split()
+    n = -(-len(text) // max_chars)
+    if n <= 1:
+        return [text]
+    target, out, cur = len(text) / n, [], []
+    for w in words:
+        cur.append(w)
+        size = len(" ".join(cur))
+        if len(out) < n - 1 and (size >= target or (size >= target * 0.75 and w[-1] in ".؛:")):
+            out.append(" ".join(cur))
+            cur = []
+    if cur:
+        out.append(" ".join(cur))
+    return out
+
+
+def write_quran_ass(scenes, path, width, height, opts):
+    """scenes: [{"text", "ayah" (None for the basmala), "translation", "start", "duration"}].
+    opts: surah (name), reciter (name or ""), translation_font, ayah_scale.
+    Each ayah is shown whole while it is recited; a long ayah is shown in screens (split between
+    words, timed by length). The text itself is never changed."""
+    from . import quran
+
+    portrait, square = height > width, height == width
+    max_letters = 80 if portrait else (75 if square else 120)
+    base = width * (0.078 if portrait else (0.062 if square else 0.040))
+    base *= float(opts.get("ayah_scale", 1.0)) * QURAN_FONT_SCALE
+    has_trans = any(sc.get("translation") for sc in scenes)
+    tr_max = 380 if portrait else (240 if square else 260)   # characters of translation per screen
+    tr_size = int(width * (0.040 if portrait else (0.034 if square else 0.022)))
+    head_size = int(width * (0.045 if portrait else (0.038 if square else 0.026)) * QURAN_FONT_SCALE)
+    side = int(width * 0.08)
+    tfont = opts.get("translation_font", "Arial")
+    gold, white = "&H0060C8E8", "&H00FFFFFF"   # ASS colours are BGR
+
+    # with a translation the ayah sits just above the middle and the translation just below it
+    if has_trans:
+        ayah_align, ayah_mv = 2, int(height * (0.50 if portrait else 0.48))
+        tr_mv = int(height * (0.54 if portrait else 0.56))
+    else:
+        ayah_align, ayah_mv, tr_mv = 5, 0, 0
+
+    head = f"""[Script Info]
+ScriptType: v4.00+
+PlayResX: {width}
+PlayResY: {height}
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Ayah,{QURAN_FONT},{int(base)},{white},&H000000FF,&H00101010,&H90000000,0,0,0,0,100,100,0,0,1,{max(2, int(base) // 28)},{max(2, int(base) // 18)},{ayah_align},{side},{side},{ayah_mv},-1
+Style: Trans,{tfont},{tr_size},&H00E6E6E6,&H000000FF,&H00101010,&H90000000,0,0,0,0,100,100,0,0,1,{max(2, tr_size // 16)},1,8,{side},{side},{tr_mv},-1
+Style: Head,{QURAN_FONT},{head_size},{gold},&H000000FF,&H00101010,&H90000000,0,0,0,0,100,100,0,0,1,{max(2, head_size // 16)},1,8,{side},{side},{int(height * (0.10 if portrait else 0.06))},-1
+Style: Foot,{tfont},{int(head_size * 0.62 / QURAN_FONT_SCALE)},&H00D0D0D0,&H000000FF,&H00101010,&H90000000,0,0,0,0,100,100,0,0,1,{max(1, head_size // 22)},1,2,{side},{side},{int(height * (0.08 if portrait else 0.05))},-1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+"""
+    ev = []
+    total = sum(sc["duration"] for sc in scenes)
+    surah = opts.get("surah", "")
+    for sc in scenes:
+        t0, dur = sc["start"], sc["duration"]
+        text = sc["text"]
+        screens = quran.pages(text, max_letters)
+        sizes = [max(1, quran.letters(s)) for s in screens]
+        t = t0
+        for k, (scr, n) in enumerate(zip(screens, sizes)):
+            d = dur * n / sum(sizes)
+            shown = scr
+            if sc.get("ayah") and k == len(screens) - 1:   # ﴿٢٥٥﴾ after the last word of the ayah
+                shown += f" \ufd3f{quran.arabic_number(sc['ayah'])}\ufd3e"
+            letters = quran.letters(scr)
+            fit = 1.0 if letters <= 40 else max(0.8, (40 / letters) ** 0.3)
+            size = f"\\fs{int(base * fit)}" if fit < 1 else ""
+            ev.append(f"Dialogue: 0,{_ts(t)},{_ts(t + d)},Ayah,,0,0,0,,{{\\fad(220,220){size}}}{_plain_text(shown)}")
+            t += d
+        if sc.get("translation"):   # a long tafsir is shown in parts, one after the other
+            parts = _split_words(sc["translation"], tr_max)
+            for k, part in enumerate(parts):
+                a, b = t0 + dur * k / len(parts), t0 + dur * (k + 1) / len(parts)
+                ev.append(f"Dialogue: 0,{_ts(a)},{_ts(b)},Trans,,0,0,0,,{{\\fad(250,250)}}{_plain_text(part)}")
+        if surah:
+            label = f"سورة {surah}" + (f" \ufd3f{quran.arabic_number(sc['ayah'])}\ufd3e" if sc.get("ayah") else "")
+            ev.append(f"Dialogue: 0,{_ts(t0)},{_ts(t0 + dur)},Head,,0,0,0,,{_plain_text(label)}")
+    if opts.get("reciter"):
+        ev.append(f"Dialogue: 0,{_ts(0.3)},{_ts(total)},Foot,,0,0,0,,{{\\fad(400,400)}}{_plain_text('بصوت القارئ ' + opts['reciter'])}")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(head + "\n".join(ev) + "\n")

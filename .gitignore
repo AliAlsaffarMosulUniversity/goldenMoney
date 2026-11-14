@@ -11,6 +11,8 @@ resource/music/*
 !resource/music/.gitkeep
 resource/fonts/*
 !resource/fonts/.gitkeep
+!resource/fonts/AmiriQuran-Regular.ttf
+!resource/fonts/AmiriQuran-OFL.txt
 resource/my_images/*
 !resource/my_images/.gitkeep
 resource/logos/*

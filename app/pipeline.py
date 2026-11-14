@@ -149,3 +149,114 @@ def run(cfg: dict, subject: str, script: str = "", terms: list[str] | None = Non
                           logo_corner=cfg.get("logo_corner", "right"))
     log(f"✅ done: {out}")
     return {"video": out, "script": script, "title": title, "terms": terms, "task": task}
+
+
+# ---------------- Ayah video: Quran recitation with its text on screen ----------------
+QURAN_BACKGROUNDS = {
+    "gradient": "خلفية هادئة متحركة (لا تحتاج مفاتيح)",
+    "nature": "مناظر طبيعية من Pixabay / Pexels",
+    "my_images": "صوري الخاصة",
+    "local": "مقاطع من مجلد على جهازي",
+}
+NATURE_TERMS = ["clouds timelapse", "mountains landscape", "ocean waves", "desert dunes", "night sky stars",
+                "forest aerial", "waterfall", "sunrise sky", "rain on leaves", "river valley", "snow mountains",
+                "green hills", "lake reflection", "sunset clouds", "galaxy stars"]
+
+
+def quran_title(surah: int, start: int, end: int, reciter: str) -> str:
+    from . import quran
+    rng = quran.arabic_number(start) if start == end else f"{quran.arabic_number(start)}–{quran.arabic_number(end)}"
+    whole = start == 1 and end == quran.ayah_count(surah)
+    return f"سورة {quran.surah_name(surah)}" + ("" if whole else f" ({rng})") + f" | {quran.RECITERS.get(reciter, reciter)}"
+
+
+def run_quran(cfg: dict, surah: int, start: int, end: int, log=print) -> dict:
+    """Recitation of ayahs start..end of a surah, with the Uthmani text on screen, ayah by ayah.
+    No AI and no music: the text and the recitation come from their sources unchanged."""
+    from . import quran
+
+    quran.check_range(surah, start, end)
+    task = STORAGE / "tasks" / time.strftime("%Y%m%d-%H%M%S")
+    task.mkdir(parents=True, exist_ok=True)
+    log(f"📁 task folder: {task}")
+    reciter = cfg.get("quran_reciter", "Alafasy_128kbps")
+    translation = cfg.get("quran_translation", "none")
+    aspect = cfg.get("aspect", "9:16")
+
+    log(f"📖 سورة {quran.surah_name(surah)}، الآيات {start}–{end}")
+    ayahs = quran.get_ayahs(surah, start, end, translation)
+    scenes = []
+    if cfg.get("quran_basmala", True) and quran.wants_basmala(surah, start):
+        scenes.append({"surah": 1, "ayah": None, "audio_ayah": 1, "text": quran.basmala(), "translation": ""})
+    for a in ayahs:
+        scenes.append({"surah": surah, "ayah": a["ayah"], "audio_ayah": a["ayah"], "text": a["text"],
+                       "translation": a["translation"]})
+
+    # recitation, one ayah at a time: each ayah stays on screen exactly while it is recited
+    log(f"🎙️ التلاوة: {quran.RECITERS.get(reciter, reciter)}")
+    wavs, t = [], 0.0
+    for i, sc in enumerate(scenes):
+        mp3 = quran.recitation(reciter, sc["surah"], sc["audio_ayah"])
+        wav = task / f"voice_{i:03d}.wav"
+        video.to_wav(mp3, wav)
+        sc["start"], sc["duration"] = t, video.duration(wav)
+        t += sc["duration"]
+        wavs.append(wav)
+        log(f"🔊 {i + 1}/{len(scenes)}  ({sc['duration']:.1f}s)")
+    voice = task / "voice.wav"
+    video.concat_audio(wavs, voice)
+    scenes[-1]["duration"] += 1.0
+    total = t + 1.0
+    log(f"⏱️ length: {total:.1f}s, {len(scenes)} ayah(s)")
+    (task / "scenes.json").write_text(json.dumps({"surah": surah, "start": start, "end": end, "reciter": reciter,
+                                                  "scenes": scenes}, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    w, h = video.SIZES[aspect]
+    ass = task / "subtitles.ass"
+    subtitles.write_quran_ass(scenes, str(ass), w, h, {
+        "surah": quran.surah_name(surah),
+        "reciter": quran.RECITERS.get(reciter, reciter) if cfg.get("quran_show_reciter", True) else "",
+        "translation_font": cfg.get("font_name", "Arial"),
+        "ayah_scale": float(cfg.get("quran_text_scale", 1.0)),
+    })
+    log("💬 نص الآيات جاهز")
+
+    background = cfg.get("quran_background", "gradient")
+    durs = [sc["duration"] for sc in scenes]
+    track = None
+    if background == "my_images":
+        imgs = [Path(i["path"]) for i in assets.list_images() if i["enabled"]]
+        if imgs:
+            track = video.build_track([[imgs[i % len(imgs)]] for i in range(len(scenes))], durs, aspect, 8.0, task, log=log)
+        else:
+            log("⚠️ no pictures added yet: using the calm background")
+    elif background in ("nature", "local"):
+        bcfg = dict(cfg, clip_duration=max(6, int(cfg.get("clip_duration", 3))))
+        if background == "local":
+            bcfg["video_source"] = "local"
+        elif bcfg.get("video_source") == "local":
+            bcfg["video_source"] = "pixabay"
+        terms = NATURE_TERMS[:]
+        random.shuffle(terms)
+        bscenes = [{"text": "", "duration": d, "terms": terms[i % len(terms):] + terms[:i % len(terms)]}
+                   for i, d in enumerate(durs)]
+        try:
+            log("🔎 collecting background footage…")
+            clips = materials.clips_for_scenes(bcfg, bscenes, STORAGE / "cache", log=log)
+            track = video.build_track(clips, durs, aspect, float(bcfg["clip_duration"]), task, log=log)
+        except RuntimeError as e:
+            log(f"⚠️ {e} — using the calm background")
+    footage = track is not None
+    if not footage:
+        track = video.gradient_track(aspect, total, task)
+
+    log("🔥 rendering final video…")
+    logos = assets.list_logos()[:2] if cfg.get("use_logos", True) else []
+    dim = float(cfg.get("quran_dim", 0.45)) if footage else 0.0   # darken footage so the text stays clear
+    out = video.final_mix(track, voice, ass, None, task / "final.mp4", total,
+                          float(cfg.get("voice_volume", 1.0)), 0.0,
+                          logos=logos, logo_size=float(cfg.get("logo_size", 0.14)),
+                          logo_corner=cfg.get("logo_corner", "right"), dim=dim)
+    title = quran_title(surah, start, end, reciter)
+    log(f"✅ done: {out}")
+    return {"video": out, "title": title, "task": task, "ayahs": ayahs}

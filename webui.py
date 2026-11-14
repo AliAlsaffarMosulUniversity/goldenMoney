@@ -118,6 +118,100 @@ def text_to_speech_tool() -> None:
             st.caption(f"📁 {res['mp3']}")
 
 
+def ayah_video_tool() -> None:
+    """Ayah video: a recitation with the Uthmani text on screen, ayah by ayah. No AI, no music."""
+    from app import quran
+
+    st.caption("اختر السورة والآيات والقارئ، وتصنع الأداة فيديو للتلاوة مع نص الآيات بالرسم العثماني، "
+               "آيةً آية مع صوت القارئ. النص من مصحف المدينة (Tanzil) والتلاوة من everyayah.com كما هما، "
+               "دون أي تدخل من الذكاء الاصطناعي، ودون موسيقى.")
+    q1, q2, q3 = st.columns(3)
+    with q1:
+        st.subheader("📖 الآيات")
+        surah = st.selectbox("السورة", range(1, 115), key="q_surah",
+                             format_func=lambda n: f"{n}. {quran.surah_name(n)} ({quran.ayah_count(n)} آية)")
+        n = quran.ayah_count(surah)
+        a1, a2 = st.columns(2)
+        start = a1.number_input("من الآية", 1, n, 1, key=f"q_from_{surah}")
+        end = a2.number_input("إلى الآية", 1, n, min(n, int(start) + 2), key=f"q_to_{surah}")
+        if end < start:
+            st.warning("آية النهاية قبل آية البداية")
+        elif end - start >= 30:
+            st.info(f"{end - start + 1} آية: سيكون الفيديو طويلاً ويحتاج وقتاً أطول")
+        if quran.wants_basmala(surah, int(start)):
+            cfg["quran_basmala"] = st.toggle("البدء بالبسملة", cfg.get("quran_basmala", True))
+        if st.button("👁️ عرض نص الآيات", key="q_show"):
+            try:
+                with st.spinner("…"):
+                    st.session_state["q_text"] = quran.get_ayahs(surah, int(start), int(min(end, start + 49)))
+            except Exception as e:
+                st.error(str(e))
+    with q2:
+        st.subheader("🎙️ التلاوة")
+        recs = list(quran.RECITERS)
+        cfg["quran_reciter"] = st.selectbox("القارئ", recs, format_func=quran.RECITERS.get,
+                                            index=recs.index(cfg["quran_reciter"]) if cfg["quran_reciter"] in recs else 0)
+        if st.button("▶️ استمع للقارئ", key="q_listen"):
+            try:
+                with st.spinner("…"):
+                    st.audio(str(quran.recitation(cfg["quran_reciter"], surah, int(start))), autoplay=True)
+            except Exception as e:
+                st.error(str(e))
+        cfg["voice_volume"] = st.slider("مستوى الصوت", 0.0, 2.0, float(cfg["voice_volume"]), 0.1, key="q_vol")
+        trs = list(quran.TRANSLATIONS)
+        cfg["quran_translation"] = st.selectbox("تحت الآية", trs, format_func=quran.TRANSLATIONS.get,
+                                                index=trs.index(cfg["quran_translation"]) if cfg["quran_translation"] in trs else 0)
+        cfg["quran_show_reciter"] = st.toggle("كتابة اسم القارئ", cfg.get("quran_show_reciter", True))
+    with q3:
+        st.subheader("🎞️ الشكل")
+        aspects = {"9:16": "عمودي 9:16 (Reels / Shorts / TikTok)", "16:9": "أفقي 16:9 (YouTube)", "1:1": "مربع 1:1"}
+        cfg["aspect"] = st.selectbox("المقاس", list(aspects), index=list(aspects).index(cfg["aspect"]),
+                                     format_func=aspects.get, key="q_aspect")
+        bgs = pipeline.QURAN_BACKGROUNDS
+        cfg["quran_background"] = st.selectbox("الخلفية", list(bgs), format_func=bgs.get,
+                                               index=list(bgs).index(cfg["quran_background"]) if cfg["quran_background"] in bgs else 0)
+        if cfg["quran_background"] == "nature":
+            st.caption("تستخدم مفتاح Pixabay أو Pexels من الإعدادات، وكلمات بحث عن الطبيعة فقط.")
+        elif cfg["quran_background"] == "my_images":
+            st.caption("تُعرض صورك المرفوعة في تبويب «صانع الفيديو» بالتتابع.")
+        elif cfg["quran_background"] == "local":
+            st.caption("تستخدم مسار المجلد في الإعدادات.")
+        if cfg["quran_background"] != "gradient":
+            cfg["quran_dim"] = st.slider("تعتيم الخلفية (لوضوح النص)", 0.0, 0.8, float(cfg.get("quran_dim", 0.45)), 0.05)
+        cfg["quran_text_scale"] = st.slider("حجم خط الآيات", 0.7, 1.4, float(cfg.get("quran_text_scale", 1.0)), 0.05)
+        cfg["use_logos"] = st.toggle("إضافة شعاراتي", cfg.get("use_logos", True), key="q_logos")
+
+    shown = st.session_state.get("q_text")
+    if shown:
+        with st.expander("نص الآيات كما سيظهر في الفيديو", expanded=True):
+            st.markdown("<div dir='rtl' style='font-size:1.5rem;line-height:2.4'>" + " ".join(
+                f"{a['text']} \ufd3f{quran.arabic_number(a['ayah'])}\ufd3e" for a in shown) + "</div>", unsafe_allow_html=True)
+
+    st.divider()
+    if st.button("🚀 إنشاء فيديو الآيات", type="primary", use_container_width=True, key="q_go"):
+        if end < start:
+            st.warning("آية النهاية قبل آية البداية")
+            return
+        save_config(cfg)
+        log_box = st.status("جاري إنشاء الفيديو…", expanded=True)
+        try:
+            res = pipeline.run_quran(cfg, surah, int(start), int(end), log=log_box.write)
+            log_box.update(label="✅ اكتمل الفيديو", state="complete", expanded=False)
+            st.session_state["q_result"] = {"video": str(res["video"]), "title": res["title"]}
+        except Exception as e:
+            log_box.update(label="❌ حدث خطأ", state="error")
+            st.error(str(e))
+    res = st.session_state.get("q_result")
+    if res:
+        v1, v2 = st.columns([1, 2])
+        v1.video(res["video"])
+        with open(res["video"], "rb") as f:
+            v2.download_button("⬇️ تحميل الفيديو", f, file_name="ayah.mp4", mime="video/mp4", key="q_dl")
+        v2.write(f"📁 `{res['video']}`")
+        v2.write("**نص مقترح للنشر:**")
+        v2.code(res["title"] + "\n\nصدقة جارية، انشرها بنية الأجر 🤍", language=None)
+
+
 with st.container(key="theme_bar"):
     _, tb = st.columns([5, 1])
     if tb.button("☀️ الوضع النهاري" if _mode == "night" else "🌙 الوضع الليلي", use_container_width=True, key="theme_btn"):
@@ -133,10 +227,13 @@ st.markdown("""
   <span class="as-badge gold">✨ مجاني</span>
 </div>
 """, unsafe_allow_html=True)
-tab_video, tab_tts = st.tabs(["🎬 صانع الفيديو", "🔊 تحويل النص إلى صوت"])
+tab_video, tab_quran, tab_tts = st.tabs(["🎬 صانع الفيديو", "📖 فيديو آية", "🔊 تحويل النص إلى صوت"])
 
 with tab_tts:
     text_to_speech_tool()
+
+with tab_quran:
+    ayah_video_tool()
 
 with tab_video:
 
