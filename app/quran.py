@@ -73,6 +73,8 @@ TRANSLATIONS = {
     "ar.mukhtasar": "المختصر في التفسير (مركز تفسير)",
     "ar.muyassar": "التفسير الميسّر (مجمع الملك فهد)",
     "en.sahih": "English — Saheeh International",
+    "de.bubenheim": "Deutsch — Bubenheim & Elyas",
+    "fr.hamidullah": "Français — Muhammad Hamidullah",
 }
 
 # written small at the bottom of the video, so viewers know where the text under the ayah comes from
@@ -80,6 +82,8 @@ TRANSLATION_SOURCES = {
     "ar.mukhtasar": "التفسير: المختصر في التفسير",
     "ar.muyassar": "التفسير: التفسير الميسّر",
     "en.sahih": "Translation: Saheeh International",
+    "de.bubenheim": "Übersetzung: Bubenheim & Elyas",
+    "fr.hamidullah": "Traduction : Muhammad Hamidullah",
 }
 
 # harakat, Quranic annotation marks and tatweel: ignored when comparing or measuring text
