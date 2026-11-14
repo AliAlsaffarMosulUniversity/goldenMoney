@@ -32,7 +32,7 @@ git clone https://github.com/AliAlsaffarMosulUniversity/goldenMoney D:\AutoShort
 تبويب «📖 فيديو آية»: اختر السورة والآيات والقارئ، فتُخرج الأداة فيديو للتلاوة مع نص الآيات بالرسم العثماني، تظهر كل آية على الشاشة أثناء تلاوتها.
 - **النص** من مصحف المدينة برواية حفص (نص Tanzil عبر api.alquran.cloud)، و**التلاوة** من everyayah.com. يُعرضان كما هما، ولا يكتب الذكاء الاصطناعي أي حرف فيهما ولا يغيّره.
 - **19 قارئاً**، منهم العفاسي وعبد الباسط والحصري والمنشاوي والمعيقلي والسديس والشريم.
-- **تحت الآية** (اختياري): التفسير الميسّر، أو ترجمة Saheeh International الإنجليزية.
+- **تحت الآية**: «المختصر في التفسير» من مركز تفسير للدراسات القرآنية (الافتراضي)، أو التفسير الميسّر، أو ترجمة Saheeh International الإنجليزية، أو بدون. يُكتب اسم مصدر التفسير أسفل الفيديو.
 - **الخلفية**: خلفية هادئة متحركة لا تحتاج أي مفتاح، أو مناظر طبيعية من Pixabay/Pexels، أو صورك، أو مجلد مقاطعك.
 - **بدون موسيقى** في هذا الوضع.
 - تُضاف البسملة تلقائياً عند البدء من أول السورة، إلا في الفاتحة والتوبة.
@@ -43,7 +43,7 @@ git clone https://github.com/AliAlsaffarMosulUniversity/goldenMoney D:\AutoShort
 من سطر الأوامر:
 ```
 python cli.py --ayah 2:255
-python cli.py --ayah 2:255-257 --reciter Husary_128kbps --translation ar.muyassar
+python cli.py --ayah 2:255-257 --reciter Husary_128kbps --translation ar.mukhtasar
 python cli.py --ayah 112
 ```
 

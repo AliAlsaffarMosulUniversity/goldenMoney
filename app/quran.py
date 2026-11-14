@@ -6,6 +6,7 @@ an ayah is only downloaded once.
 """
 import json
 import re
+import time
 from pathlib import Path
 
 import requests
@@ -14,6 +15,9 @@ from .config import STORAGE
 
 CACHE = STORAGE / "quran"
 TEXT_API = "https://api.alquran.cloud/v1/surah/{surah}/{edition}"
+# tafsir books that api.alquran.cloud does not have: the quran.com data published by github.com/spa5k/tafsir_api
+TAFSIR_API = "https://cdn.jsdelivr.net/gh/spa5k/tafsir_api@main/tafsir/{slug}/{surah}.json"
+TAFSIR_SLUGS = {"ar.mukhtasar": "ar-tafsir-al-mukhtasar"}
 AUDIO_URL = "https://everyayah.com/data/{reciter}/{surah:03d}{ayah:03d}.mp3"
 TEXT_EDITION = "quran-uthmani"
 
@@ -63,11 +67,19 @@ RECITERS = {
     "Ahmed_ibn_Ali_al-Ajamy_128kbps_ketaballah.net": "أحمد بن علي العجمي",
 }
 
-# shown under the ayah (optional)
+# shown under the ayah (optional); the short name is written in the video as the source
 TRANSLATIONS = {
     "none": "بدون",
+    "ar.mukhtasar": "المختصر في التفسير (مركز تفسير)",
     "ar.muyassar": "التفسير الميسّر (مجمع الملك فهد)",
     "en.sahih": "English — Saheeh International",
+}
+
+# written small at the bottom of the video, so viewers know where the text under the ayah comes from
+TRANSLATION_SOURCES = {
+    "ar.mukhtasar": "التفسير: المختصر في التفسير",
+    "ar.muyassar": "التفسير: التفسير الميسّر",
+    "en.sahih": "Translation: Saheeh International",
 }
 
 # harakat, Quranic annotation marks and tatweel: ignored when comparing or measuring text
@@ -140,13 +152,27 @@ def _surah_edition(surah: int, edition: str) -> list[str]:
                 return data
         except ValueError:
             pass
-    try:
-        r = requests.get(TEXT_API.format(surah=surah, edition=edition), timeout=30)
-        r.raise_for_status()
-        ayahs = r.json()["data"]["ayahs"]
-    except (requests.RequestException, KeyError, TypeError, ValueError) as e:
-        raise RuntimeError(f"تعذّر تنزيل نص سورة {surah_name(surah)} ({edition}). تأكد من الاتصال بالإنترنت.\n{e}") from e
-    data = [a["text"].replace("﻿", "").strip() for a in ayahs]
+    err = None
+    for _ in range(3):   # the CDN now and then answers with an error page: try again
+        try:
+            if edition in TAFSIR_SLUGS:
+                r = requests.get(TAFSIR_API.format(slug=TAFSIR_SLUGS[edition], surah=surah), timeout=60)
+                r.raise_for_status()
+                rows = sorted(r.json(), key=lambda a: a["ayah"])
+                if [a["ayah"] for a in rows] != list(range(1, ayah_count(surah) + 1)):
+                    raise ValueError("ayah numbers do not match")
+                ayahs = rows
+            else:
+                r = requests.get(TEXT_API.format(surah=surah, edition=edition), timeout=30)
+                r.raise_for_status()
+                ayahs = r.json()["data"]["ayahs"]
+            break
+        except (requests.RequestException, KeyError, TypeError, ValueError) as e:
+            err = e
+            time.sleep(1.5)
+    else:
+        raise RuntimeError(f"تعذّر تنزيل نص سورة {surah_name(surah)} ({edition}). تأكد من الاتصال بالإنترنت.\n{err}") from err
+    data = [a["text"].replace("\ufeff", "").strip() for a in ayahs]
     if len(data) != ayah_count(surah):
         raise RuntimeError(f"النص الذي وصل لسورة {surah_name(surah)} ناقص ({len(data)} من {ayah_count(surah)} آية)")
     path.parent.mkdir(parents=True, exist_ok=True)

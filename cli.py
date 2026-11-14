@@ -1,6 +1,6 @@
 """Command-line use:
   python cli.py "video subject" [--aspect 16:9] [--script-file s.txt]
-  python cli.py --ayah 2:255-257 [--reciter Husary_128kbps] [--translation ar.muyassar]   (Ayah video)"""
+  python cli.py --ayah 2:255-257 [--reciter Husary_128kbps] [--translation ar.mukhtasar]   (Ayah video)"""
 import argparse
 import sys
 
@@ -18,7 +18,7 @@ ap = argparse.ArgumentParser(description="AutoShorts: make a short video from a 
 ap.add_argument("subject", nargs="?", default="")
 ap.add_argument("--ayah", help="Ayah video, e.g. 2:255 or 2:255-257 or 112 (a whole surah)")
 ap.add_argument("--reciter", help="everyayah.com folder, e.g. Alafasy_128kbps (see app/quran.py)")
-ap.add_argument("--translation", choices=["none", "ar.muyassar", "en.sahih"])
+ap.add_argument("--translation", choices=["none", "ar.mukhtasar", "ar.muyassar", "en.sahih"])
 ap.add_argument("--background", choices=["gradient", "nature", "my_images", "local"])
 ap.add_argument("--aspect", choices=["9:16", "16:9", "1:1"])
 ap.add_argument("--voice")

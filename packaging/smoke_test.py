@@ -48,7 +48,7 @@ assert quran.get_ayahs(2, 1, 1)[0]["text"] == "الٓمٓ", "basmala not taken o
 for r in quran.RECITERS:   # every reciter offered in the app must have the last ayah of the Quran
     assert quran.recitation(r, 114, 6).stat().st_size > 1000, r
 cfg = load_config()
-cfg.update(aspect="9:16", quran_translation="ar.muyassar", quran_background="gradient", use_logos=False)
+cfg.update(aspect="9:16", quran_translation="ar.mukhtasar", quran_background="gradient", use_logos=False)
 res = pipeline.run_quran(cfg, 112, 1, 4, log=lambda m: None)
 d = video.duration(res["video"])
 print("ayah video", res["title"], round(d, 2), "s")

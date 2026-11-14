@@ -216,6 +216,7 @@ def run_quran(cfg: dict, surah: int, start: int, end: int, log=print) -> dict:
     subtitles.write_quran_ass(scenes, str(ass), w, h, {
         "surah": quran.surah_name(surah),
         "reciter": quran.RECITERS.get(reciter, reciter) if cfg.get("quran_show_reciter", True) else "",
+        "source": quran.TRANSLATION_SOURCES.get(translation, ""),
         "translation_font": cfg.get("font_name", "Arial"),
         "ayah_scale": float(cfg.get("quran_text_scale", 1.0)),
     })
