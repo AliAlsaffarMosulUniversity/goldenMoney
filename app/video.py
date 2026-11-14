@@ -135,6 +135,21 @@ def build_track(scene_clips: list[list[Path]], scene_durs: list[float], aspect: 
     return out
 
 
+def gradient_track(aspect: str, length: float, work: Path) -> Path:
+    """A calm, slowly moving dark background (no footage needed), for the Ayah video."""
+    w, h = SIZES[aspect]
+    out = work / "track.mp4"
+    src = (f"gradients=s={w}x{h}:c0=0x08182b:c1=0x0d3a2e:c2=0x1a1530:nb_colors=3:"
+           f"speed=0.004:d={length + 1:.2f}:r={FPS}")
+    try:
+        _run(["-f", "lavfi", "-i", src, "-vf", "noise=alls=3:allf=t,format=yuv420p", "-c:v", "libx264",
+              "-preset", "veryfast", "-crf", "20", "-t", f"{length + 0.5:.3f}", out])
+    except RuntimeError:   # an older FFmpeg without the gradients source: a plain dark background
+        _run(["-f", "lavfi", "-i", f"color=c=0x0b1d2a:s={w}x{h}:r={FPS}:d={length + 1:.2f}", "-pix_fmt", "yuv420p",
+              "-c:v", "libx264", "-preset", "veryfast", "-t", f"{length + 0.5:.3f}", out])
+    return out
+
+
 def concat_audio(parts: list[Path], out: Path) -> None:
     listing = out.parent / "voice_parts.txt"
     listing.write_text("".join(f"file '{p.name}'\n" for p in parts), encoding="utf-8")
@@ -147,7 +162,8 @@ def to_wav(src: Path, dst: Path) -> None:
 
 def final_mix(track: Path, voice: Path, ass: Path | None, bgm: Path | None, out: Path,
               total: float, voice_vol: float, bgm_vol: float,
-              logos: list[Path] | None = None, logo_size: float = 0.14, logo_corner: str = "right") -> Path:
+              logos: list[Path] | None = None, logo_size: float = 0.14, logo_corner: str = "right",
+              dim: float = 0.0) -> Path:
     """Burn subtitles, put the logos in the top corners and mix voice + background music
     (music dips while the voice speaks). Runs inside the task folder so paths stay relative
     (avoids Windows drive-letter escaping problems)."""
@@ -161,6 +177,9 @@ def final_mix(track: Path, voice: Path, ass: Path | None, bgm: Path | None, out:
 
     chain = []
     cur = "0:v"
+    if dim > 0:   # darken the background so text on it is easy to read
+        chain.append(f"[{cur}]drawbox=x=0:y=0:w=iw:h=ih:color=black@{min(dim, 0.9):.2f}:t=fill[vd]")
+        cur = "vd"
     if ass:
         fonts = work / "fonts"
         if not fonts.exists():
