@@ -40,7 +40,7 @@ DEFAULTS = {
     "logo_size": 0.14,
     "logo_corner": "right",
     "quran_reciter": "Alafasy_128kbps",
-    "quran_translation": "none",
+    "quran_translation": "ar.mukhtasar",
     "quran_background": "gradient",
     "quran_dim": 0.45,
     "quran_basmala": True,

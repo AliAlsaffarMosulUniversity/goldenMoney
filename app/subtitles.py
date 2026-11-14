@@ -127,7 +127,8 @@ def _split_words(text, max_chars):
 
 def write_quran_ass(scenes, path, width, height, opts):
     """scenes: [{"text", "ayah" (None for the basmala), "translation", "start", "duration"}].
-    opts: surah (name), reciter (name or ""), translation_font, ayah_scale.
+    opts: surah (name), reciter (name or ""), source (where the text under the ayah is from, or ""),
+    translation_font, ayah_scale.
     Each ayah is shown whole while it is recited; a long ayah is shown in screens (split between
     words, timed by length). The text itself is never changed."""
     from . import quran
@@ -195,7 +196,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         if surah:
             label = f"سورة {surah}" + (f" \ufd3f{quran.arabic_number(sc['ayah'])}\ufd3e" if sc.get("ayah") else "")
             ev.append(f"Dialogue: 0,{_ts(t0)},{_ts(t0 + dur)},Head,,0,0,0,,{_plain_text(label)}")
-    if opts.get("reciter"):
-        ev.append(f"Dialogue: 0,{_ts(0.3)},{_ts(total)},Foot,,0,0,0,,{{\\fad(400,400)}}{_plain_text('بصوت القارئ ' + opts['reciter'])}")
+    foot = [t for t in ("بصوت القارئ " + opts["reciter"] if opts.get("reciter") else "", opts.get("source", "")) if t]
+    if foot:
+        ev.append(f"Dialogue: 0,{_ts(0.3)},{_ts(total)},Foot,,0,0,0,,{{\\fad(400,400)}}" + "\\N".join(_plain_text(t) for t in foot))
     with open(path, "w", encoding="utf-8") as f:
         f.write(head + "\n".join(ev) + "\n")
