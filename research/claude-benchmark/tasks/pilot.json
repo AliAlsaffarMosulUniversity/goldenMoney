@@ -1,0 +1,26 @@
+[
+  {
+    "id": "R-S-01",
+    "domain": "report",
+    "difficulty": "simple",
+    "prompt": "You are preparing an executive summary for the board of a retail company.\n\nQuarterly sales (thousand USD) for 2025:\n\nregion,Q1,Q2,Q3,Q4\nNorth,120,135,150,170\nSouth,95,90,88,101\nEast,140,152,149,160\nWest,60,72,85,99\n\nWrite a one-page executive summary in Markdown, 250-450 words, with exactly these four second-level headings in this order:\n## Summary\n## Key figures\n## Risks\n## Recommendations\n\nUnder 'Key figures', state the 2025 annual total for every region (in thousand USD) and the company total. Use only the data given; do not invent figures. Output only the report."
+  },
+  {
+    "id": "V-S-01",
+    "domain": "video",
+    "difficulty": "simple",
+    "prompt": "Plan a 30-second vertical social-media video (1080x1920) advertising a reusable steel water bottle called 'Arc'.\n\nDeliver exactly three fenced code blocks, in this order:\n\n1. A ```json block: an object {\"title\": string, \"shots\": [...]} with exactly 5 shots. Each shot has: \"id\" (integer 1-5), \"duration_s\" (number), \"visual\" (string), \"on_screen_text\" (string, at most 42 characters), \"narration\" (string). Shot durations must add up to exactly 30.\n\n2. A ```srt block: captions for the narration in valid SubRip format, all timestamps between 00:00:00,000 and 00:00:30,000, in increasing order.\n\n3. A ```bash block containing a single ffmpeg command (one line, starting with 'ffmpeg') that renders a 30-second 1080x1920 placeholder MP4 named out.mp4 from a solid colour source (lavfi) and shows each shot's on_screen_text with drawtext during that shot's time window. Do not reference any input files or fonts by path.\n\nOutput nothing except the three code blocks."
+  },
+  {
+    "id": "I-S-01",
+    "domain": "image",
+    "difficulty": "simple",
+    "prompt": "Design a consistent flat icon set for a mobile app: home, search, settings, user, mail.\n\nDeliver exactly five fenced ```svg code blocks, one per icon, in that order. Requirements for every icon: viewBox=\"0 0 24 24\"; width and height 24; stroke-based style with stroke-width 2, round line caps and joins, stroke=\"currentColor\", fill=\"none\"; no <image>, <script>, <style> or external references; no text elements. Output nothing except the five code blocks."
+  },
+  {
+    "id": "C-S-01",
+    "domain": "code",
+    "difficulty": "simple",
+    "prompt": "Write a Python 3.10+ function:\n\n    def parse_duration(s: str) -> int\n\nIt converts a human duration string to a whole number of seconds. Supported units: h (hours), m (minutes), s (seconds), case-insensitive. Components may be separated by optional whitespace, e.g. '1h30m', '45s', '2H', '1h 5m 10s', ' 3m '. Units must appear at most once each and in the order h, m, s. Each number is a non-negative integer.\n\nRaise ValueError for: empty or whitespace-only strings, unknown units, a number without a unit, a unit without a number, repeated units, units out of order, negative numbers, decimals, or any other malformed input.\n\nDeliver a single ```python code block containing only the function and any imports it needs (no tests, no example usage)."
+  }
+]
